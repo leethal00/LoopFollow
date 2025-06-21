@@ -175,6 +175,16 @@ struct RemoteSettingsView: View {
                             .toggleStyle(SwitchToggleStyle())
                     }
 
+                    // MARK: - Nightscout Remote Commands
+                    Section(header: Text("Nightscout Remote Commands"), 
+                           footer: Text("Enable or disable Nightscout remote command buttons in the main remote control interface.")) {
+                        Toggle("Carb Entry", isOn: $viewModel.enableCarbEntry)
+                            .toggleStyle(SwitchToggleStyle())
+
+                        Toggle("Cancel Temp Target", isOn: $viewModel.enableCancelTempTarget)
+                            .toggleStyle(SwitchToggleStyle())
+                    }
+
                     // MARK: - Debug / Info
                     Section(header: Text("Debug / Info")) {
                         Text("Device Token: \(Storage.shared.deviceToken.value)")

@@ -117,6 +117,11 @@
 		DDEF503A2D31615000999A5D /* LogManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEF50392D31614200999A5D /* LogManager.swift */; };
 		DDEF503C2D31BE2D00999A5D /* TaskScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEF503B2D31BE2A00999A5D /* TaskScheduler.swift */; };
 		DDEF503F2D32754F00999A5D /* ProfileTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEF503E2D32754A00999A5D /* ProfileTask.swift */; };
+		DDF1234A2C987ABC0048F05C /* CarbEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF123492C987ABC0048F05C /* CarbEntryView.swift */; };
+		DDF1234C2C987DEF0048F05C /* CancelTempTargetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF1234B2C987DEF0048F05C /* CancelTempTargetView.swift */; };
+		DDF1234D2C987GHI0048F05C /* APNSErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF1234E2C987GHI0048F05C /* APNSErrorHandler.swift */; };
+		DDF1234F2C987JKL0048F05C /* CommandStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF123502C987JKL0048F05C /* CommandStatus.swift */; };
+		DDF123512C987MNO0048F05C /* CommandStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF123522C987MNO0048F05C /* CommandStatusView.swift */; };
 		DDF2C0102BEFA991007A20E6 /* GitHubService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF2C00F2BEFA991007A20E6 /* GitHubService.swift */; };
 		DDF2C0122BEFB733007A20E6 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF2C0112BEFB733007A20E6 /* AppVersionManager.swift */; };
 		DDF2C0142BEFD468007A20E6 /* blacklisted-versions.json in Resources */ = {isa = PBXBuildFile; fileRef = DDF2C0132BEFD468007A20E6 /* blacklisted-versions.json */; };
@@ -397,6 +402,11 @@
 		DDEF50392D31614200999A5D /* LogManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogManager.swift; sourceTree = "<group>"; };
 		DDEF503B2D31BE2A00999A5D /* TaskScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskScheduler.swift; sourceTree = "<group>"; };
 		DDEF503E2D32754A00999A5D /* ProfileTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTask.swift; sourceTree = "<group>"; };
+		DDF123492C987ABC0048F05C /* CarbEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarbEntryView.swift; sourceTree = "<group>"; };
+		DDF1234B2C987DEF0048F05C /* CancelTempTargetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CancelTempTargetView.swift; sourceTree = "<group>"; };
+		DDF1234E2C987GHI0048F05C /* APNSErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APNSErrorHandler.swift; sourceTree = "<group>"; };
+		DDF123502C987JKL0048F05C /* CommandStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandStatus.swift; sourceTree = "<group>"; };
+		DDF123522C987MNO0048F05C /* CommandStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandStatusView.swift; sourceTree = "<group>"; };
 		DDF2C00F2BEFA991007A20E6 /* GitHubService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubService.swift; sourceTree = "<group>"; };
 		DDF2C0112BEFB733007A20E6 /* AppVersionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionManager.swift; sourceTree = "<group>"; };
 		DDF2C0132BEFD468007A20E6 /* blacklisted-versions.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "blacklisted-versions.json"; sourceTree = "<group>"; };
@@ -682,6 +692,11 @@
 				DD4878122C7B750D0048F05C /* TempTargetView.swift */,
 				DD48781D2C7DAF2F0048F05C /* PushNotificationManager.swift */,
 				DD4878142C7B75230048F05C /* MealView.swift */,
+				DDF123492C987ABC0048F05C /* CarbEntryView.swift */,
+				DDF1234B2C987DEF0048F05C /* CancelTempTargetView.swift */,
+				DDF1234E2C987GHI0048F05C /* APNSErrorHandler.swift */,
+				DDF123502C987JKL0048F05C /* CommandStatus.swift */,
+				DDF123522C987MNO0048F05C /* CommandStatusView.swift */,
 				DD48780F2C7B74BF0048F05C /* TrioRemoteControlView.swift */,
 				DD48780D2C7B74A40048F05C /* TrioRemoteControlViewModel.swift */,
 				DD4878162C7B75350048F05C /* BolusView.swift */,
@@ -1356,9 +1371,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-LoopFollow/Pods-LoopFollow-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-LoopFollow/Pods-LoopFollow-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -1480,6 +1499,11 @@
 				DDF6999E2C5AAA640058A8D9 /* ErrorMessageView.swift in Sources */,
 				FCC6886524898EEE00A0279D /* UserDefaults.swift in Sources */,
 				DD4878152C7B75230048F05C /* MealView.swift in Sources */,
+				DDF1234A2C987ABC0048F05C /* CarbEntryView.swift in Sources */,
+				DDF1234C2C987DEF0048F05C /* CancelTempTargetView.swift in Sources */,
+				DDF1234D2C987GHI0048F05C /* APNSErrorHandler.swift in Sources */,
+				DDF1234F2C987JKL0048F05C /* CommandStatus.swift in Sources */,
+				DDF123512C987MNO0048F05C /* CommandStatusView.swift in Sources */,
 				FC16A97F249969E2003D6245 /* Graphs.swift in Sources */,
 				FC8589BF252B54F500C8FC73 /* Mobileprovision.swift in Sources */,
 				DD4878052C7B2C970048F05C /* Storage.swift in Sources */,
@@ -1710,8 +1734,9 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "LoopFollow/Loop Follow.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(LF_DEVELOPMENT_TEAM)";
+				DEVELOPMENT_TEAM = GU75TZQYBL;
 				INFOPLIST_FILE = LoopFollow/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1732,8 +1757,9 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = "LoopFollow/Loop Follow.entitlements";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(LF_DEVELOPMENT_TEAM)";
+				DEVELOPMENT_TEAM = GU75TZQYBL;
 				INFOPLIST_FILE = LoopFollow/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -36,7 +36,7 @@ class PushNotificationManager {
         self.bundleId = Storage.shared.bundleId.value
     }
 
-    func sendOverridePushNotification(override: ProfileManager.TrioOverride, completion: @escaping (Bool, String?) -> Void) {
+    func sendOverridePushNotification(override: ProfileManager.TrioOverride, completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         let message = PushMessage(
             user: user,
             commandType: .startOverride,
@@ -48,7 +48,7 @@ class PushNotificationManager {
         sendPushNotification(message: message, completion: completion)
     }
 
-    func sendCancelOverridePushNotification(completion: @escaping (Bool, String?) -> Void) {
+    func sendCancelOverridePushNotification(completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         let message = PushMessage(
             user: user,
             commandType: .cancelOverride,
@@ -60,7 +60,7 @@ class PushNotificationManager {
         sendPushNotification(message: message, completion: completion)
     }
 
-    func sendBolusPushNotification(bolusAmount: HKQuantity, completion: @escaping (Bool, String?) -> Void) {
+    func sendBolusPushNotification(bolusAmount: HKQuantity, completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         let bolusAmount = Decimal(bolusAmount.doubleValue(for: .internationalUnit()))
 
         let message = PushMessage(
@@ -74,7 +74,7 @@ class PushNotificationManager {
         sendPushNotification(message: message, completion: completion)
     }
 
-    func sendTempTargetPushNotification(target: HKQuantity, duration: HKQuantity, completion: @escaping (Bool, String?) -> Void) {
+    func sendTempTargetPushNotification(target: HKQuantity, duration: HKQuantity, completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         let targetValue = Int(target.doubleValue(for: HKUnit.milligramsPerDeciliter))
         let durationValue = Int(duration.doubleValue(for: HKUnit.minute()))
 
@@ -91,7 +91,7 @@ class PushNotificationManager {
         sendPushNotification(message: message, completion: completion)
     }
 
-    func sendCancelTempTargetPushNotification(completion: @escaping (Bool, String?) -> Void) {
+    func sendCancelTempTargetPushNotification(completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         let message = PushMessage(
             user: user,
             commandType: .cancelTempTarget,
@@ -108,7 +108,7 @@ class PushNotificationManager {
         fat: HKQuantity,
         bolusAmount: HKQuantity,
         scheduledTime: Date?,
-        completion: @escaping (Bool, String?) -> Void
+        completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void
     ) {
         func convertToOptionalInt(_ quantity: HKQuantity) -> Int? {
             let valueInGrams = quantity.doubleValue(for: .gram())
@@ -128,7 +128,14 @@ class PushNotificationManager {
         let bolusAmountValue = convertToOptionalDecimal(bolusAmount)
 
         guard carbsValue != nil || proteinValue != nil || fatValue != nil else {
-            completion(false, "No nutrient data provided. At least one of carbs, fat, or protein must be greater than 0.")
+            let errorInfo = APNSErrorInfo(
+                type: .clientError("No nutrient data"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "No nutrient data provided. At least one of carbs, fat, or protein must be greater than 0.",
+                technicalMessage: "No nutrient data in meal command"
+            )
+            completion(false, "No nutrient data provided. At least one of carbs, fat, or protein must be greater than 0.", errorInfo)
             return
         }
 
@@ -196,7 +203,7 @@ class PushNotificationManager {
         return keyLines.joined()
     }
 
-    private func sendPushNotification(message: PushMessage, completion: @escaping (Bool, String?) -> Void) {
+    private func sendPushNotification(message: PushMessage, completion: @escaping (Bool, String?, APNSErrorInfo?) -> Void) {
         print("Push message to send: \(message)")
 
         var missingFields = [String]()
@@ -208,7 +215,14 @@ class PushNotificationManager {
         if !missingFields.isEmpty {
             let errorMessage = "Missing required fields, check your remote settings: \(missingFields.joined(separator: ", "))"
             LogManager.shared.log(category: .apns, message: errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .clientError("Missing configuration"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Please check your remote settings. Missing: \(missingFields.joined(separator: ", "))",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
             return
         }
 
@@ -219,28 +233,56 @@ class PushNotificationManager {
         if !missingFields.isEmpty {
             let errorMessage = "Missing required data, verify that you are using the latest version of Trio: \(missingFields.joined(separator: ", "))"
             LogManager.shared.log(category: .apns, message: errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .clientError("Missing Trio data"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Please update Trio app. Missing: \(missingFields.joined(separator: ", "))",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
             return
         }
 
         if let validationErrors = validateCredentials() {
             let errorMessage = "Credential validation failed: \(validationErrors.joined(separator: ", "))"
             LogManager.shared.log(category: .apns, message: errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .authenticationError("Invalid credentials"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Please check your APNS credentials in Remote Settings.",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
             return
         }
 
         guard let url = constructAPNsURL() else {
             let errorMessage = "Failed to construct APNs URL"
             LogManager.shared.log(category: .apns, message: errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .clientError("Invalid URL"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Configuration error. Please check your settings.",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
             return
         }
 
         guard let jwt = getOrGenerateJWT() else {
             let errorMessage = "Failed to generate JWT, please check that the token is correct."
             LogManager.shared.log(category: .apns, message: errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .authenticationError("JWT generation failed"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Please check your APNS Key in Remote Settings.",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
             return
         }
 
@@ -261,7 +303,14 @@ class PushNotificationManager {
                 if let error = error {
                     let errorMessage = "Failed to send push notification: \(error.localizedDescription)"
                     LogManager.shared.log(category: .apns, message: errorMessage)
-                    completion(false, errorMessage)
+                    let errorInfo = APNSErrorInfo(
+                        type: .temporaryError("Network error"),
+                        shouldRetry: true,
+                        suggestedDelay: 5.0,
+                        userMessage: "Network error. Will retry automatically.",
+                        technicalMessage: errorMessage
+                    )
+                    completion(false, errorMessage, errorInfo)
                     return
                 }
 
@@ -274,44 +323,41 @@ class PushNotificationManager {
                         print("\(key): \(value)")
                     }
 
-                    var responseBodyMessage = ""
-                    if let data = data, let responseBody = String(data: data, encoding: .utf8) {
+                    let responseBody = data.flatMap { String(data: $0, encoding: .utf8) }
+                    let apnsId = httpResponse.allHeaderFields["apns-id"] as? String
+                    
+                    if let responseBody = responseBody {
                         print("Response body: \(responseBody)")
-
-                            if let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                           let reason = json["reason"] as? String {
-                            responseBodyMessage = reason
-                        }
                     } else {
                         print("No response body")
                     }
 
-                    switch httpResponse.statusCode {
-                    case 200:
-                        completion(true, nil)
-                    case 400:
-                        completion(false, "Bad request. The request was invalid or malformed. \(responseBodyMessage)")
-                    case 403:
-                        completion(false, "Authentication error. Check your certificate or authentication token. \(responseBodyMessage)")
-                    case 404:
-                        completion(false, "Invalid request: The :path value was incorrect. \(responseBodyMessage)")
-                    case 405:
-                        completion(false, "Invalid request: Only POST requests are supported. \(responseBodyMessage)")
-                    case 410:
-                        completion(false, "The device token is no longer active for the topic. \(responseBodyMessage)")
-                    case 413:
-                        completion(false, "Payload too large. The notification payload exceeded the size limit. \(responseBodyMessage)")
-                    case 429:
-                        completion(false, "Too many requests. \(responseBodyMessage)")
-                    case 500:
-                        completion(false, "Internal server error at APNs. \(responseBodyMessage)")
-                    case 503:
-                        completion(false, "Service unavailable. The server is temporarily unavailable. Try again later. \(responseBodyMessage)")
+                    // Use enhanced error parsing
+                    let errorInfo = APNSErrorHandler.parseAPNSResponse(
+                        statusCode: httpResponse.statusCode,
+                        responseBody: responseBody,
+                        apnsId: apnsId
+                    )
+                    
+                    // Log detailed technical information
+                    LogManager.shared.log(category: .apns, message: errorInfo.technicalMessage)
+                    
+                    switch errorInfo.type {
+                    case .success:
+                        completion(true, nil, errorInfo)
                     default:
-                        completion(false, "Unexpected status code: \(httpResponse.statusCode). \(responseBodyMessage)")
+                        completion(false, errorInfo.userMessage, errorInfo)
                     }
                 } else {
-                    completion(false, "Failed to get a valid HTTP response.")
+                    let errorMessage = "Failed to get a valid HTTP response."
+                    let errorInfo = APNSErrorInfo(
+                        type: .unknownError("Invalid response"),
+                        shouldRetry: true,
+                        suggestedDelay: 5.0,
+                        userMessage: "Invalid response from Apple servers. Will retry.",
+                        technicalMessage: errorMessage
+                    )
+                    completion(false, errorMessage, errorInfo)
                 }
             }
             task.resume()
@@ -319,7 +365,14 @@ class PushNotificationManager {
         } catch {
             let errorMessage = "Failed to encode push message: \(error.localizedDescription)"
             print(errorMessage)
-            completion(false, errorMessage)
+            let errorInfo = APNSErrorInfo(
+                type: .clientError("JSON encoding failed"),
+                shouldRetry: false,
+                suggestedDelay: nil,
+                userMessage: "Command format error. Please try again.",
+                technicalMessage: errorMessage
+            )
+            completion(false, errorMessage, errorInfo)
         }
     }
 

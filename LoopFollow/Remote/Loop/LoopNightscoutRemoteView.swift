@@ -25,7 +25,7 @@ struct LoopNightscoutRemoteView: View {
                         ]
 
                         LazyVGrid(columns: columns, spacing: 16) {
-                            CommandButtonView(command: "Overrides", iconName: "slider.horizontal.3", destination: LoopOverrideView())
+                            CommandButtonView(command: "Overrides", iconName: "slider.horizontal.3", destination: AnyView(LoopOverrideView()))
                         }
                         .padding(.horizontal)
 

@@ -21,8 +21,7 @@ struct TempTargetView: View {
     @State private var showAlert: Bool = false
     @State private var alertType: AlertType? = nil
     @State private var alertMessage: String? = nil
-    @State private var isLoading: Bool = false
-    @State private var statusMessage: String? = nil
+    @StateObject private var statusManager = CommandStatusManager()
 
     @State private var showPresetSheet: Bool = false
     @State private var presetName = ""
@@ -33,8 +32,6 @@ struct TempTargetView: View {
 
     enum AlertType {
         case confirmCommand
-        case statusSuccess
-        case statusFailure
         case validation
         case confirmCancellation
     }
@@ -57,8 +54,10 @@ struct TempTargetView: View {
                                     Text(UserDefaultsRepository.getPreferredUnit().localizedShortUnitString).foregroundColor(.secondary)
                                 }
                                 Button {
-                                    alertType = .confirmCancellation
-                                    showAlert = true
+                                    if !statusManager.isLoading {
+                                        alertType = .confirmCancellation
+                                        showAlert = true
+                                    }
                                 } label: {
                                     HStack {
                                         Text("Cancel Temp Target")
@@ -104,10 +103,12 @@ struct TempTargetView: View {
                             }
                             HStack {
                                 Button {
-                                    alertType = .confirmCommand
-                                    showAlert = true
-                                    targetFieldIsFocused = false
-                                    durationFieldIsFocused = false
+                                    if !statusManager.isLoading {
+                                        alertType = .confirmCommand
+                                        showAlert = true
+                                        targetFieldIsFocused = false
+                                        durationFieldIsFocused = false
+                                    }
                                 } label: {
                                     Text("Enact")
                                 }
@@ -119,9 +120,11 @@ struct TempTargetView: View {
                                 Spacer()
 
                                 Button {
-                                    showPresetSheet = true
-                                    targetFieldIsFocused = false
-                                    durationFieldIsFocused = false
+                                    if !statusManager.isLoading {
+                                        showPresetSheet = true
+                                        targetFieldIsFocused = false
+                                        durationFieldIsFocused = false
+                                    }
                                 } label: {
                                     Text("Save as Preset")
                                 }
@@ -141,12 +144,14 @@ struct TempTargetView: View {
                                     }
                                     .contentShape(Rectangle())
                                     .onTapGesture {
-                                        alertType = .confirmCommand
-                                        newHKTarget = preset.target
-                                        duration = preset.duration
-                                        showAlert = true
-                                        targetFieldIsFocused = false
-                                        durationFieldIsFocused = false
+                                        if !statusManager.isLoading {
+                                            alertType = .confirmCommand
+                                            newHKTarget = preset.target
+                                            duration = preset.duration
+                                            showAlert = true
+                                            targetFieldIsFocused = false
+                                            durationFieldIsFocused = false
+                                        }
                                     }
                                     .swipeActions {
                                         Button(role: .destructive) {
@@ -163,11 +168,15 @@ struct TempTargetView: View {
                             }
                         }
                     }
-
-                    if isLoading {
-                        ProgressView("Please wait...")
-                            .padding()
-                    }
+                    
+                    // Enhanced status feedback
+                    CommandStatusView(statusManager: statusManager, onRetry: {
+                        // Determine which action to retry based on current context
+                        if newHKTarget.doubleValue(for: UserDefaultsRepository.getPreferredUnit()) > 0 &&
+                           duration.doubleValue(for: HKUnit.minute()) > 0 {
+                            enactTempTarget()
+                        }
+                    })
                 }
             }
             .navigationTitle("Remote")
@@ -182,20 +191,6 @@ struct TempTargetView: View {
                             enactTempTarget()
                         }),
                         secondaryButton: .cancel()
-                    )
-                case .statusSuccess:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"), action: {
-                            presentationMode.wrappedValue.dismiss()
-                        })
-                    )
-                case .statusFailure:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"))
                     )
                 case .confirmCancellation:
                     return Alert(
@@ -247,45 +242,55 @@ struct TempTargetView: View {
 
     private var isButtonDisabled: Bool {
         return newHKTarget.doubleValue(for: UserDefaultsRepository.getPreferredUnit()) == 0 ||
-        duration.doubleValue(for: HKUnit.minute()) == 0 || isLoading
+        duration.doubleValue(for: HKUnit.minute()) == 0 || statusManager.isLoading
     }
 
     private func enactTempTarget() {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
-        pushNotificationManager.sendTempTargetPushNotification(target: newHKTarget, duration: duration) { success, errorMessage in
+        pushNotificationManager.sendTempTargetPushNotification(target: newHKTarget, duration: duration) { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                self.isLoading = false
                 if success {
-                    self.statusMessage = "Temp target command successfully sent."
-                    self.alertType = .statusSuccess
                     LogManager.shared.log(category: .apns, message: "sendTempTargetPushNotification succeeded with target: \(newHKTarget), duration: \(duration)")
+                    self.statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
+                    LogManager.shared.log(category: .apns, message: "sendTempTargetPushNotification failed with target: \(newHKTarget), duration: \(duration), error: \(apnsError.technicalMessage)")
+                    self.statusManager.updateStatus(.failed(error: apnsError))
                 } else {
-                    self.statusMessage = errorMessage ?? "Failed to send temp target command."
-                    self.alertType = .statusFailure
-                    LogManager.shared.log(category: .apns, message: "sendTempTargetPushNotification failed with target: \(newHKTarget), duration: \(duration), error: \(errorMessage ?? "unknown error")")
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send temp target command.",
+                        technicalMessage: "Unknown error in temp target command"
+                    )
+                    self.statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                self.showAlert = true
             }
         }
     }
 
     private func cancelTempTarget() {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
-        pushNotificationManager.sendCancelTempTargetPushNotification { success, errorMessage in
+        pushNotificationManager.sendCancelTempTargetPushNotification { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                self.isLoading = false
                 if success {
-                    self.statusMessage = "Cancel temp target command successfully sent."
-                    self.alertType = .statusSuccess
                     LogManager.shared.log(category: .apns, message: "sendCancelTempTargetPushNotification succeeded")
+                    self.statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
+                    LogManager.shared.log(category: .apns, message: "sendCancelTempTargetPushNotification failed with error: \(apnsError.technicalMessage)")
+                    self.statusManager.updateStatus(.failed(error: apnsError))
                 } else {
-                    self.statusMessage = errorMessage ?? "Failed to send cancel temp target command."
-                    self.alertType = .statusFailure
-                    LogManager.shared.log(category: .apns, message: "sendCancelTempTargetPushNotification failed with error: \(errorMessage ?? "unknown error")")
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send cancel temp target command.",
+                        technicalMessage: "Unknown error in cancel temp target command"
+                    )
+                    self.statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                self.showAlert = true
             }
         }
     }

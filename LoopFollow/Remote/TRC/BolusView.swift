@@ -21,13 +21,10 @@ struct BolusView: View {
     @State private var showAlert = false
     @State private var alertType: AlertType? = nil
     @State private var alertMessage: String? = nil
-    @State private var isLoading = false
-    @State private var statusMessage: String? = nil
+    @StateObject private var statusManager = CommandStatusManager()
 
     enum AlertType {
         case confirmBolus
-        case statusSuccess
-        case statusFailure
         case validation
     }
 
@@ -50,10 +47,10 @@ struct BolusView: View {
                         )
                     }
 
-                    LoadingButtonView(
+                    EnhancedLoadingButtonView(
                         buttonText: "Send Bolus",
                         progressText: "Sending Bolus...",
-                        isLoading: isLoading,
+                        statusManager: statusManager,
                         action: {
                             bolusFieldIsFocused = false
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -63,7 +60,7 @@ struct BolusView: View {
                                 }
                             }
                         },
-                        isDisabled: isLoading
+                        isDisabled: false
                     )
                 }
                 .navigationTitle("Bolus")
@@ -84,20 +81,6 @@ struct BolusView: View {
                         }),
                         secondaryButton: .cancel()
                     )
-                case .statusSuccess:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"), action: {
-                            presentationMode.wrappedValue.dismiss()
-                        })
-                    )
-                case .statusFailure:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"))
-                    )
                 case .validation:
                     return Alert(
                         title: Text("Validation Error"),
@@ -112,22 +95,27 @@ struct BolusView: View {
     }
 
     private func sendBolus() {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
-        pushNotificationManager.sendBolusPushNotification(bolusAmount: bolusAmount) { success, errorMessage in
+        pushNotificationManager.sendBolusPushNotification(bolusAmount: bolusAmount) { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                isLoading = false
                 if success {
-                    statusMessage = "Bolus command sent successfully."
                     LogManager.shared.log(category: .apns, message: "sendBolusPushNotification succeeded - Bolus: \(bolusAmount.doubleValue(for: .internationalUnit())) U")
                     bolusAmount = HKQuantity(unit: .internationalUnit(), doubleValue: 0.0)
-                    alertType = .statusSuccess
+                    statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
+                    LogManager.shared.log(category: .apns, message: "sendBolusPushNotification failed with error: \(apnsError.technicalMessage)")
+                    statusManager.updateStatus(.failed(error: apnsError))
                 } else {
-                    statusMessage = errorMessage ?? "Failed to send bolus command."
-                    LogManager.shared.log(category: .apns, message: "sendBolusPushNotification failed with error: \(errorMessage ?? "unknown error")")
-                    alertType = .statusFailure
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send bolus command.",
+                        technicalMessage: "Unknown error in bolus command"
+                    )
+                    statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                showAlert = true
             }
         }
     }

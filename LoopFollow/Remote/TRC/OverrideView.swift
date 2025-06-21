@@ -19,8 +19,7 @@ struct OverrideView: View {
     @State private var showAlert: Bool = false
     @State private var alertType: AlertType? = nil
     @State private var alertMessage: String? = nil
-    @State private var isLoading: Bool = false
-    @State private var statusMessage: String? = nil
+    @StateObject private var statusManager = CommandStatusManager()
 
     @State private var selectedOverride: ProfileManager.TrioOverride? = nil
     @State private var showConfirmation: Bool = false
@@ -32,8 +31,6 @@ struct OverrideView: View {
     enum AlertType {
         case confirmActivation
         case confirmCancellation
-        case statusSuccess
-        case statusFailure
         case validation
     }
 
@@ -55,8 +52,10 @@ struct OverrideView: View {
                                         .foregroundColor(.secondary)
                                 }
                                 Button {
-                                    alertType = .confirmCancellation
-                                    showAlert = true
+                                    if !statusManager.isLoading {
+                                        alertType = .confirmCancellation
+                                        showAlert = true
+                                    }
                                 } label: {
                                     HStack {
                                         Text("Cancel Override")
@@ -76,9 +75,11 @@ struct OverrideView: View {
                             } else {
                                 ForEach(profileManager.trioOverrides, id: \.name) { override in
                                     Button(action: {
-                                        selectedOverride = override
-                                        alertType = .confirmActivation
-                                        showAlert = true
+                                        if !statusManager.isLoading {
+                                            selectedOverride = override
+                                            alertType = .confirmActivation
+                                            showAlert = true
+                                        }
                                     }) {
                                         HStack {
                                             VStack(alignment: .leading) {
@@ -110,11 +111,14 @@ struct OverrideView: View {
                             }
                         }
                     }
-
-                    if isLoading {
-                        ProgressView("Please wait...")
-                            .padding()
-                    }
+                    
+                    // Enhanced status feedback
+                    CommandStatusView(statusManager: statusManager, onRetry: {
+                        // Determine which action to retry based on current context
+                        if let override = selectedOverride {
+                            activateOverride(override)
+                        }
+                    })
                 }
             }
             .navigationTitle("Overrides")
@@ -141,20 +145,6 @@ struct OverrideView: View {
                         }),
                         secondaryButton: .cancel()
                     )
-                case .statusSuccess:
-                    return Alert(
-                        title: Text("Success"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"), action: {
-                            presentationMode.wrappedValue.dismiss()
-                        })
-                    )
-                case .statusFailure:
-                    return Alert(
-                        title: Text("Error"),
-                        message: Text(statusMessage ?? "An error occurred."),
-                        dismissButton: .default(Text("OK"))
-                    )
                 case .validation:
                     return Alert(
                         title: Text("Validation Error"),
@@ -171,41 +161,51 @@ struct OverrideView: View {
     // MARK: - Functions
 
     private func activateOverride(_ override: ProfileManager.TrioOverride) {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
-        pushNotificationManager.sendOverridePushNotification(override: override) { success, errorMessage in
+        pushNotificationManager.sendOverridePushNotification(override: override) { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                self.isLoading = false
                 if success {
-                    self.statusMessage = "Override command sent successfully."
-                    self.alertType = .statusSuccess
                     LogManager.shared.log(category: .apns, message: "sendOverridePushNotification succeeded for override: \(override.name)")
+                    self.statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
+                    LogManager.shared.log(category: .apns, message: "sendOverridePushNotification failed for override: \(override.name). Error: \(apnsError.technicalMessage)")
+                    self.statusManager.updateStatus(.failed(error: apnsError))
                 } else {
-                    self.statusMessage = errorMessage ?? "Failed to send override command."
-                    self.alertType = .statusFailure
-                    LogManager.shared.log(category: .apns, message: "sendOverridePushNotification failed for override: \(override.name). Error: \(errorMessage ?? "unknown error")")
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send override command.",
+                        technicalMessage: "Unknown error in override command"
+                    )
+                    self.statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                self.showAlert = true
             }
         }
     }
 
     private func cancelOverride() {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
-        pushNotificationManager.sendCancelOverridePushNotification { success, errorMessage in
+        pushNotificationManager.sendCancelOverridePushNotification { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                self.isLoading = false
                 if success {
-                    self.statusMessage = "Cancel override command sent successfully."
-                    self.alertType = .statusSuccess
                     LogManager.shared.log(category: .apns, message: "sendCancelOverridePushNotification succeeded")
+                    self.statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
+                    LogManager.shared.log(category: .apns, message: "sendCancelOverridePushNotification failed. Error: \(apnsError.technicalMessage)")
+                    self.statusManager.updateStatus(.failed(error: apnsError))
                 } else {
-                    self.statusMessage = errorMessage ?? "Failed to send cancel override command."
-                    self.alertType = .statusFailure
-                    LogManager.shared.log(category: .apns, message: "sendCancelOverridePushNotification failed. Error: \(errorMessage ?? "unknown error")")
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send cancel override command.",
+                        technicalMessage: "Unknown error in cancel override command"
+                    )
+                    self.statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                self.showAlert = true
             }
         }
     }

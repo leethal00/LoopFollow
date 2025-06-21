@@ -23,6 +23,8 @@ class RemoteSettingsViewModel: ObservableObject {
     @Published var maxFat: HKQuantity
     @Published var mealWithBolus: Bool
     @Published var mealWithFatProtein: Bool
+    @Published var enableCarbEntry: Bool
+    @Published var enableCancelTempTarget: Bool
     @Published var isTrioDevice: Bool = (ObservableUserDefaults.shared.device.value == "Trio")
 
     private var storage = Storage.shared
@@ -40,6 +42,8 @@ class RemoteSettingsViewModel: ObservableObject {
         self.maxFat = storage.maxFat.value
         self.mealWithBolus = storage.mealWithBolus.value
         self.mealWithFatProtein = storage.mealWithFatProtein.value
+        self.enableCarbEntry = storage.enableCarbEntry.value
+        self.enableCancelTempTarget = storage.enableCancelTempTarget.value
 
         setupBindings()
     }
@@ -87,6 +91,14 @@ class RemoteSettingsViewModel: ObservableObject {
 
         $mealWithFatProtein
             .sink { [weak self] in self?.storage.mealWithFatProtein.value = $0 }
+            .store(in: &cancellables)
+
+        $enableCarbEntry
+            .sink { [weak self] in self?.storage.enableCarbEntry.value = $0 }
+            .store(in: &cancellables)
+
+        $enableCancelTempTarget
+            .sink { [weak self] in self?.storage.enableCancelTempTarget.value = $0 }
             .store(in: &cancellables)
 
         ObservableUserDefaults.shared.device.$value

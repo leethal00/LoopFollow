@@ -34,15 +34,12 @@ struct MealView: View {
     @State private var showAlert: Bool = false
     @State private var alertType: AlertType? = nil
     @State private var alertMessage: String? = nil
-    @State private var isLoading: Bool = false
-    @State private var statusMessage: String? = nil
+    @StateObject private var statusManager = CommandStatusManager()
     @State private var selectedTime: Date? = nil
     @State private var isScheduling: Bool = false
 
     enum AlertType {
         case confirmMeal
-        case statusSuccess
-        case statusFailure
         case validationError
     }
 
@@ -127,10 +124,10 @@ struct MealView: View {
                         }
                     }
 
-                    LoadingButtonView(
+                    EnhancedLoadingButtonView(
                         buttonText: "Send Meal",
                         progressText: "Sending Meal Data...",
-                        isLoading: isLoading,
+                        statusManager: statusManager,
                         action: {
                             carbsFieldIsFocused = false
                             proteinFieldIsFocused = false
@@ -212,20 +209,6 @@ struct MealView: View {
                         secondaryButton: .cancel()
                     )
 
-                case .statusSuccess:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"), action: {
-                            presentationMode.wrappedValue.dismiss()
-                        })
-                    )
-                case .statusFailure:
-                    return Alert(
-                        title: Text("Status"),
-                        message: Text(statusMessage ?? ""),
-                        dismissButton: .default(Text("OK"))
-                    )
                 case .validationError:
                     return Alert(
                         title: Text("Validation Error"),
@@ -240,11 +223,11 @@ struct MealView: View {
     }
 
     private var isButtonDisabled: Bool {
-        return isLoading
+        return false
     }
 
     private func sendMealCommand() {
-        isLoading = true
+        statusManager.updateStatus(.sending)
 
         var scheduledDate: Date? = nil
         if isScheduling, let selectedTime = selectedTime {
@@ -264,11 +247,9 @@ struct MealView: View {
             fat: fat,
             bolusAmount: bolusAmount,
             scheduledTime: scheduledDate
-        ) { success, errorMessage in
+        ) { success, errorMessage, apnsError in
             DispatchQueue.main.async {
-                isLoading = false
                 if success {
-                    statusMessage = "Meal command sent successfully."
                     LogManager.shared.log(
                         category: .apns,
                         message: "sendMealPushNotification succeeded - Carbs: \(carbs.doubleValue(for: .gram())) g, Protein: \(protein.doubleValue(for: .gram())) g, Fat: \(fat.doubleValue(for: .gram())) g, Bolus: \(bolusAmount.doubleValue(for: .internationalUnit())) U, Scheduled: \(scheduledDate != nil ? formatDate(scheduledDate!) : "now")"
@@ -280,16 +261,24 @@ struct MealView: View {
                     fat = HKQuantity(unit: .gram(), doubleValue: 0.0)
                     selectedTime = nil
                     isScheduling = false
-                    alertType = .statusSuccess
-                } else {
-                    statusMessage = errorMessage ?? "Failed to send meal command."
+                    
+                    statusManager.updateStatus(.success)
+                } else if let apnsError = apnsError {
                     LogManager.shared.log(
                         category: .apns,
-                        message: "sendMealPushNotification failed with error: \(errorMessage ?? "unknown error")"
+                        message: "sendMealPushNotification failed with error: \(apnsError.technicalMessage)"
                     )
-                    alertType = .statusFailure
+                    statusManager.updateStatus(.failed(error: apnsError))
+                } else {
+                    let fallbackError = APNSErrorInfo(
+                        type: .unknownError("Unknown error"),
+                        shouldRetry: false,
+                        suggestedDelay: nil,
+                        userMessage: errorMessage ?? "Failed to send meal command.",
+                        technicalMessage: "Unknown error in meal command"
+                    )
+                    statusManager.updateStatus(.failed(error: fallbackError))
                 }
-                showAlert = true
             }
         }
     }

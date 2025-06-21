@@ -27,6 +27,9 @@ class Storage {
 
     var mealWithBolus = StorageValue<Bool>(key: "mealWithBolus", defaultValue: false)
     var mealWithFatProtein = StorageValue<Bool>(key: "mealWithFatProtein", defaultValue: false)
+    
+    var enableCarbEntry = StorageValue<Bool>(key: "enableCarbEntry", defaultValue: true)
+    var enableCancelTempTarget = StorageValue<Bool>(key: "enableCancelTempTarget", defaultValue: true)
 
     var cachedJWT = StorageValue<String?>(key: "cachedJWT", defaultValue: nil)
     var jwtExpirationDate = StorageValue<Date?>(key: "jwtExpirationDate", defaultValue: nil)
